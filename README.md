@@ -1,2 +1,26 @@
 # Send-to-Grabbit
-Grabbit Browser Extension
+
+Chrome extension for sending browser downloads to Grabbit.
+
+## Commands
+
+- `npm install` installs dependencies.
+- `npm run typecheck` runs TypeScript checks.
+- `npm run build` builds the extension into `dist/`.
+
+## Loading in Chrome
+
+1. Run `npm run build`.
+2. Open `chrome://extensions`.
+3. Enable Developer mode.
+4. Click Load unpacked and select this repo's `dist/` directory.
+
+## Protocol
+
+Downloads are sent to Grabbit with a single protocol shape:
+
+```text
+grabbit://add?payload=<base64url-json>
+```
+
+The JSON payload can include `url`, `filename`, `userAgent`, `authorization`, `referer`, and `cookie`.

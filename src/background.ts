@@ -9,7 +9,6 @@ type CapturedHeader = {
 };
 
 type CapturedRequest = {
-  url: string;
   time: number;
   headers: CapturedHeader[];
 };
@@ -78,7 +77,7 @@ function buildGrabbitUrl(payload: GrabbitPayload) {
 }
 
 function isSupportedDownloadUrl(url: string) {
-  return /^(https?|ftp):\/\//i.test(url);
+  return /^(https?):\/\//i.test(url);
 }
 
 async function openExternalProtocol(url: string) {
@@ -157,19 +156,30 @@ async function buildForwardedHeaders(
   return headers.map((header) => `${header.name}: ${header.value}`);
 }
 
-async function sendDownloadToGrabbit(item: chrome.downloads.DownloadItem) {
-  debugLog("Download created", {
-    id: item.id,
-    url: item.url,
-    filename: item.filename,
-    referrer: item.referrer,
-  });
+chrome.webRequest.onBeforeSendHeaders.addListener(
+  (details) => {
+    if (!details.requestHeaders) {
+      return;
+    }
 
-  if (!isSupportedDownloadUrl(item.url)) {
-    debugLog("Ignored unsupported download URL", {
-      id: item.id,
-      url: item.url,
+    const headers: CapturedHeader[] = [];
+    for (const header of details.requestHeaders) {
+      if (header.value !== undefined) {
+        headers.push({ name: header.name, value: header.value });
+      }
+    }
+
+    recentRequests.set(details.url, {
+      time: Date.now(),
+      headers,
     });
+  },
+  { urls: ["<all_urls>"] },
+  ["requestHeaders", "extraHeaders"],
+);
+
+chrome.downloads.onCreated.addListener((item) => {
+  if (!isSupportedDownloadUrl(item.url)) {
     return;
   }
 
@@ -210,39 +220,4 @@ async function sendDownloadToGrabbit(item: chrome.downloads.DownloadItem) {
   } catch (error) {
     debugLog("Failed to open Grabbit protocol URL", { id: item.id, error });
   }
-}
-
-chrome.webRequest.onBeforeSendHeaders.addListener(
-  (details) => {
-    if (!details.requestHeaders) {
-      debugLog("Request had no headers to capture", { url: details.url });
-      return undefined;
-    }
-
-    const headers: CapturedHeader[] = [];
-    for (const header of details.requestHeaders) {
-      if (header.value !== undefined) {
-        headers.push({ name: header.name, value: header.value });
-      }
-    }
-
-    recentRequests.set(details.url, {
-      url: details.url,
-      time: Date.now(),
-      headers,
-    });
-
-    debugLog("Captured request headers", {
-      url: details.url,
-      headerNames: headers.map((header) => header.name),
-    });
-
-    return undefined;
-  },
-  { urls: ["<all_urls>"] },
-  ["requestHeaders", "extraHeaders"],
-);
-
-chrome.downloads.onCreated.addListener((item) => {
-  void sendDownloadToGrabbit(item);
 });

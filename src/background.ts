@@ -54,7 +54,9 @@ async function getCookieHeader(url: string) {
 
 function buildGrabbitUrl(payload: GrabbitPayload) {
   const params = new URLSearchParams({ payload: JSON.stringify(payload) });
-  return `grabbit://addUri?${params.toString()}`;
+  const grabbitUrl = `grabbit://addUri?${params.toString()}`;
+  debugLog("Built Grabbit URL", { grabbitUrl });
+  return grabbitUrl;
 }
 
 function isSupportedDownloadUrl(url: string) {
@@ -68,13 +70,10 @@ async function openExternalProtocol(url: string) {
   });
 
   if (activeTab?.id !== undefined) {
-    debugLog("Opening protocol URL in active tab", { tabId: activeTab.id });
     await chrome.tabs.update(activeTab.id, { url });
-    return;
+  } else {
+    await chrome.tabs.create({ active: true, url });
   }
-
-  debugLog("No active tab found; opening protocol URL in new tab");
-  await chrome.tabs.create({ active: true, url });
 }
 
 function shouldForwardHeader(name: string) {
@@ -87,9 +86,7 @@ function shouldForwardHeader(name: string) {
 }
 
 function hasHeader(headers: CapturedHeader[], name: string) {
-  return headers.some(
-    (header) => header.name.toLowerCase() === name,
-  );
+  return headers.some((header) => header.name.toLowerCase() === name);
 }
 
 async function buildForwardedHeaders(
@@ -148,24 +145,11 @@ chrome.downloads.onCreated.addListener(async (item) => {
   const capturedRequest = recentRequests.get(item.url);
   const headers = capturedRequest?.headers ?? [];
   const header = await buildForwardedHeaders(item, headers);
-
   const payload: GrabbitPayload = {
     url: item.url,
     header,
   };
-  
-  // try {
-  //   await chrome.downloads.cancel(item.id);
-  //   debugLog("Cancelled browser download", { id: item.id });
-  // } catch (error) {
-  //   debugLog("Failed to cancel browser download", { id: item.id, error });
-  //   return;
-  // }
-
-  try {
-    await openExternalProtocol(buildGrabbitUrl(payload));
-    debugLog("Opened Grabbit protocol URL", { id: item.id });
-  } catch (error) {
-    debugLog("Failed to open Grabbit protocol URL", { id: item.id, error });
-  }
+  await chrome.downloads.cancel(item.id);
+  await openExternalProtocol(buildGrabbitUrl(payload));
+    debugLog("Opened Grabbit protocol URL", { payload });
 });

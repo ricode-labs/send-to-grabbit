@@ -78,7 +78,7 @@ async function openExternalProtocol(url: string) {
 }
 
 function shouldForwardHeader(name: string) {
-  const normalizedName = normalizeHeaderName(name);
+  const normalizedName = name.toLowerCase();
   return (
     !excludedHeaders.has(normalizedName) &&
     !normalizedName.startsWith("sec-") &&

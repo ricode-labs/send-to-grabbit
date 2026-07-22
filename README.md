@@ -20,10 +20,10 @@ Chrome extension for sending browser downloads to Grabbit.
 Downloads are sent to Grabbit with a single protocol shape:
 
 ```text
-grabbit://addUri?payload=<base64url-json>
+grabbit://addUri?payload=<url-encoded-json>
 ```
 
-The decoded JSON payload includes `url` and aria2-style `header` lines:
+The `payload` query parameter is URL-encoded JSON with `url` and aria2-style `header` lines:
 
 ```json
 {

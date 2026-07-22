@@ -20,7 +20,14 @@ Chrome extension for sending browser downloads to Grabbit.
 Downloads are sent to Grabbit with a single protocol shape:
 
 ```text
-grabbit://add?payload=<base64url-json>
+grabbit://addUri?payload=<base64url-json>
 ```
 
-The JSON payload can include `url`, `filename`, `userAgent`, `authorization`, `referer`, and `cookie`.
+The decoded JSON payload includes `url` and aria2-style `header` lines:
+
+```json
+{
+  "url": "https://example.com/file.zip",
+  "header": ["Accept-Language: ja", "Accept-Charset: utf-8"]
+}
+```

@@ -1,20 +1,31 @@
 type GrabbitPayload = {
   url: string
-  filename?: string
-  userAgent?: string
-  authorization?: string
-  referer?: string
-  cookie?: string
+  header?: string[]
+}
+
+type CapturedHeader = {
+  name: string
+  value: string
 }
 
 type CapturedRequest = {
   url: string
   time: number
-  headers: Record<string, string>
+  headers: CapturedHeader[]
 }
 
 const requestTtlMs = 2 * 60 * 1000
 const recentRequests = new Map<string, CapturedRequest>()
+const debugPrefix = "[Send to Grabbit]"
+
+function debugLog(message: string, data?: unknown) {
+  if (data === undefined) {
+    console.debug(debugPrefix, message)
+    return
+  }
+
+  console.debug(debugPrefix, message, data)
+}
 
 function normalizeHeaderName(name: string) {
   return name.toLowerCase()
@@ -24,15 +35,16 @@ function captureRequestHeaders(
   details: chrome.webRequest.OnBeforeSendHeadersDetails
 ): chrome.webRequest.BlockingResponse | undefined {
   if (!details.requestHeaders) {
+    debugLog("Request had no headers to capture", { url: details.url })
     return undefined
   }
 
-  const headers: Record<string, string> = {}
+  const headers: CapturedHeader[] = []
   for (const header of details.requestHeaders) {
     if (!header.name || header.value === undefined) {
       continue
     }
-    headers[normalizeHeaderName(header.name)] = header.value
+    headers.push({ name: header.name, value: header.value })
   }
 
   recentRequests.set(details.url, {
@@ -41,15 +53,26 @@ function captureRequestHeaders(
     headers,
   })
 
+  debugLog("Captured request headers", {
+    url: details.url,
+    headerNames: headers.map((header) => header.name),
+  })
+
   return undefined
 }
 
 function pruneCapturedRequests() {
   const expiredBefore = Date.now() - requestTtlMs
+  let prunedCount = 0
   for (const [key, request] of recentRequests) {
     if (request.time < expiredBefore) {
       recentRequests.delete(key)
+      prunedCount += 1
     }
+  }
+
+  if (prunedCount > 0) {
+    debugLog("Pruned expired captured requests", { prunedCount })
   }
 }
 
@@ -73,58 +96,148 @@ function buildCookieHeader(cookies: chrome.cookies.Cookie[]) {
 async function getCookieHeader(url: string) {
   try {
     const cookies = await chrome.cookies.getAll({ url })
+    debugLog("Read cookies for download URL", {
+      url,
+      cookieCount: cookies.length,
+    })
     return buildCookieHeader(cookies)
-  } catch {
+  } catch (error) {
+    debugLog("Failed to read cookies for download URL", { url, error })
     return ""
   }
 }
 
 function buildGrabbitUrl(payload: GrabbitPayload) {
-  return `grabbit://add?payload=${base64UrlEncode(JSON.stringify(payload))}`
+  return `grabbit://addUri?payload=${base64UrlEncode(JSON.stringify(payload))}`
 }
 
 function isSupportedDownloadUrl(url: string) {
   return /^(https?|ftp):\/\//i.test(url)
 }
 
-function basename(value: string) {
-  return value.split(/[\\/]/).filter(Boolean).pop() || ""
+async function openExternalProtocol(url: string) {
+  const [activeTab] = await chrome.tabs.query({
+    active: true,
+    currentWindow: true,
+  })
+
+  if (activeTab?.id !== undefined) {
+    debugLog("Opening protocol URL in active tab", { tabId: activeTab.id })
+    await chrome.tabs.update(activeTab.id, { url })
+    return
+  }
+
+  debugLog("No active tab found; opening protocol URL in new tab")
+  await chrome.tabs.create({ active: true, url })
 }
 
-async function openExternalProtocol(url: string) {
-  await chrome.tabs.create({ active: false, url })
+function summarizePayload(payload: GrabbitPayload) {
+  return {
+    url: payload.url,
+    headerCount: payload.header?.length ?? 0,
+    headerNames: payload.header?.map((header) => header.split(":", 1)[0]) ?? [],
+  }
+}
+
+function shouldForwardHeader(name: string) {
+  const normalizedName = normalizeHeaderName(name)
+  const excludedHeaders = new Set([
+    "host",
+    "connection",
+    "content-length",
+    "content-type",
+    "range",
+    "accept-encoding",
+    "upgrade-insecure-requests",
+  ])
+
+  return (
+    !excludedHeaders.has(normalizedName) &&
+    !normalizedName.startsWith("sec-") &&
+    !normalizedName.startsWith("proxy-")
+  )
+}
+
+function hasHeader(headers: CapturedHeader[], name: string) {
+  const normalizedName = normalizeHeaderName(name)
+  return headers.some((header) => normalizeHeaderName(header.name) === normalizedName)
+}
+
+async function buildForwardedHeaders(
+  item: chrome.downloads.DownloadItem,
+  capturedHeaders: CapturedHeader[]
+) {
+  const headers = capturedHeaders.filter((header) => shouldForwardHeader(header.name))
+
+  if (!hasHeader(headers, "cookie")) {
+    const cookie = await getCookieHeader(item.url)
+    if (cookie) {
+      headers.push({ name: "Cookie", value: cookie })
+    }
+  }
+
+  if (!hasHeader(headers, "referer") && item.referrer) {
+    headers.push({ name: "Referer", value: item.referrer })
+  }
+
+  if (!hasHeader(headers, "user-agent") && navigator.userAgent) {
+    headers.push({ name: "User-Agent", value: navigator.userAgent })
+  }
+
+  return headers.map((header) => `${header.name}: ${header.value}`)
 }
 
 async function sendDownloadToGrabbit(item: chrome.downloads.DownloadItem) {
+  debugLog("Download created", {
+    id: item.id,
+    url: item.url,
+    filename: item.filename,
+    referrer: item.referrer,
+  })
+
   if (!isSupportedDownloadUrl(item.url)) {
+    debugLog("Ignored unsupported download URL", {
+      id: item.id,
+      url: item.url,
+    })
     return
   }
 
   pruneCapturedRequests()
 
   const capturedRequest = recentRequests.get(item.url)
-  const headers = capturedRequest?.headers ?? {}
-  const cookie = headers.cookie || (await getCookieHeader(item.url))
-  const referer = headers.referer || item.referrer || ""
-  const userAgent = headers["user-agent"] || navigator.userAgent || ""
-  const authorization = headers.authorization || ""
+  const headers = capturedRequest?.headers ?? []
+  debugLog("Matched captured request", {
+    id: item.id,
+    url: item.url,
+    matched: Boolean(capturedRequest),
+    capturedAgeMs: capturedRequest ? Date.now() - capturedRequest.time : undefined,
+    headerNames: headers.map((header) => header.name),
+  })
+
+  const header = await buildForwardedHeaders(item, headers)
 
   const payload: GrabbitPayload = {
     url: item.url,
-    filename: basename(item.filename) || basename(item.url) || undefined,
-    userAgent,
-    authorization,
-    referer,
-    cookie,
+    header,
   }
+
+  debugLog("Prepared Grabbit payload", summarizePayload(payload))
 
   try {
     await chrome.downloads.cancel(item.id)
-  } catch {
+    debugLog("Cancelled browser download", { id: item.id })
+  } catch (error) {
+    debugLog("Failed to cancel browser download", { id: item.id, error })
     return
   }
 
-  await openExternalProtocol(buildGrabbitUrl(payload)).catch(() => undefined)
+  try {
+    await openExternalProtocol(buildGrabbitUrl(payload))
+    debugLog("Opened Grabbit protocol URL", { id: item.id })
+  } catch (error) {
+    debugLog("Failed to open Grabbit protocol URL", { id: item.id, error })
+  }
 }
 
 chrome.webRequest.onBeforeSendHeaders.addListener(

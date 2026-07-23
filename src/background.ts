@@ -13,8 +13,7 @@ type CapturedRequest = {
   headers: CapturedHeader[];
 };
 
-const requestTtlMs = 2 * 60 * 1000;
-const pruneIntervalMs = 30 * 1000;
+const requestTtlMs = 10 * 1000;
 const recentRequests = new Map<string, CapturedRequest>();
 const debugPrefix = "[Send to Grabbit]";
 const excludedHeaders = new Set([
@@ -45,7 +44,7 @@ function pruneCapturedRequests() {
   }
 }
 
-setInterval(pruneCapturedRequests, pruneIntervalMs);
+setInterval(pruneCapturedRequests, requestTtlMs);
 
 async function getCookieHeader(url: string) {
   const cookies = await chrome.cookies.getAll({ url });

@@ -149,6 +149,7 @@ chrome.downloads.onCreated.addListener(async (item) => {
     header,
   };
   await chrome.downloads.cancel(item.id);
+  await chrome.downloads.erase({ id: item.id });
   await openExternalProtocol(buildGrabbitUrl(payload));
-    debugLog("Opened Grabbit protocol URL", { payload });
+  debugLog("Opened Grabbit protocol URL", { payload });
 });

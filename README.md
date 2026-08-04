@@ -2,6 +2,12 @@
 
 Chrome extension for sending browser downloads to Grabbit.
 
+## Why use it
+
+Send-to-Grabbit removes the manual copy-and-paste step when sending browser downloads to Grabbit.
+
+It also forwards useful request metadata, including cookies, referrer, user agent, and captured request headers when available. This is especially helpful for downloads that require a logged-in browser session or signed request context, where pasting only the raw URL into Grabbit may fail.
+
 ## Commands
 
 - `npm install` installs dependencies.

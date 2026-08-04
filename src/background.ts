@@ -115,9 +115,9 @@ async function buildForwardedHeaders(
 }
 
 chrome.webRequest.onBeforeSendHeaders.addListener(
-  (details) => {
+  (details): chrome.webRequest.BlockingResponse | undefined => {
     if (!details.requestHeaders) {
-      return;
+      return undefined;
     }
 
     const headers: CapturedHeader[] = [];
@@ -131,6 +131,8 @@ chrome.webRequest.onBeforeSendHeaders.addListener(
       time: Date.now(),
       headers,
     });
+
+    return undefined;
   },
   { urls: ["<all_urls>"] },
   ["requestHeaders", "extraHeaders"],

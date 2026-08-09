@@ -1,5 +1,7 @@
 # Send-to-Grabbit
 
+[English](README.md) | [中文](README.zh.md) | [日本語](README.ja.md)
+
 Chrome のダウンロードを Grabbit に送るための拡張機能です。
 
 ## 使う理由

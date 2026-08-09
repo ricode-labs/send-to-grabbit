@@ -1,8 +1,8 @@
 # Send-to-Grabbit
 
-Chrome extension for sending browser downloads to Grabbit.
+[English](README.md) | [中文](README.zh.md) | [日本語](README.ja.md)
 
-Localized docs: [中文](README.zh.md) | [日本語](README.ja.md)
+Chrome extension for sending browser downloads to Grabbit.
 
 ## Why use it
 

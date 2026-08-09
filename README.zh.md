@@ -1,5 +1,7 @@
 # Send-to-Grabbit
 
+[English](README.md) | [中文](README.zh.md) | [日本語](README.ja.md)
+
 将 Chrome 浏览器中的下载自动发送到 Grabbit 的扩展。
 
 ## 为什么使用

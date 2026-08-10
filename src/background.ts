@@ -15,6 +15,7 @@ type CapturedRequest = {
 
 const requestTtlMs = 10 * 1000;
 const recentRequests = new Map<string, CapturedRequest>();
+const originalUrls = new Map<number, string>();
 const debugPrefix = "[Send to Grabbit]";
 const excludedHeaders = new Set([
   "host",
@@ -31,7 +32,6 @@ function debugLog(message: string, data?: unknown) {
     console.debug(debugPrefix, message);
     return;
   }
-
   console.debug(debugPrefix, message, data);
 }
 
@@ -63,18 +63,35 @@ function isSupportedDownloadUrl(url: string) {
 }
 
 async function openExternalProtocol(url: string) {
-  const tab = await chrome.tabs.create({ active: false, url });
-  const tabId = tab.id;
-  if (tabId === undefined) {
+  const [activeTab] = await chrome.tabs.query({
+    active: true,
+    currentWindow: true,
+  });
+
+  if (!activeTab || activeTab.id === undefined || activeTab.url === undefined) {
     return;
   }
 
-  // setTimeout(() => {
-  //   chrome.tabs.remove(tabId).catch(() => {
-  //     // The protocol handler or browser may have already closed the temporary tab.
-  //   });
-  // }, 1000);
+  originalUrls.set(activeTab.id, activeTab.url);
+  await chrome.tabs.update(activeTab.id, { url });
 }
+
+chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
+  const originalUrl = originalUrls.get(tabId);
+  if (!originalUrl) {
+    return;
+  }
+
+  if (
+    !changeInfo.url?.startsWith("grabbit://") &&
+    !tab.url?.startsWith("grabbit://")
+  ) {
+    return;
+  }
+
+  originalUrls.delete(tabId);
+  await chrome.tabs.update(tabId, { url: originalUrl });
+});
 
 function shouldForwardHeader(name: string) {
   const normalizedName = name.toLowerCase();

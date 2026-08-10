@@ -68,7 +68,7 @@ async function openExternalProtocol(url: string) {
     currentWindow: true,
   });
 
-  if (activeTab && activeTab.id && activeTab.url) {
+  if (activeTab && activeTab.id !== undefined && activeTab.url !== undefined) {
     originalUrls.set(activeTab.id, activeTab.url);
     await chrome.tabs.update(activeTab.id, { url });
   }

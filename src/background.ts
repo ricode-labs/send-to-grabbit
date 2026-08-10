@@ -15,7 +15,6 @@ type CapturedRequest = {
 
 const requestTtlMs = 10 * 1000;
 const recentRequests = new Map<string, CapturedRequest>();
-const originalUrls = new Map<number, string>();
 const debugPrefix = "[Send to Grabbit]";
 const excludedHeaders = new Set([
   "host",
@@ -32,6 +31,7 @@ function debugLog(message: string, data?: unknown) {
     console.debug(debugPrefix, message);
     return;
   }
+
   console.debug(debugPrefix, message, data);
 }
 
@@ -68,19 +68,12 @@ async function openExternalProtocol(url: string) {
     currentWindow: true,
   });
 
-  if (activeTab && activeTab.id !== undefined && activeTab.url !== undefined) {
-    originalUrls.set(activeTab.id, activeTab.url);
+  if (activeTab?.id !== undefined) {
     await chrome.tabs.update(activeTab.id, { url });
+  } else {
+    await chrome.tabs.create({ active: true, url });
   }
 }
-
-chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
-  const originalUrl = originalUrls.get(tabId);
-  if (originalUrl && changeInfo.url?.startsWith("grabbit://")) {
-    originalUrls.delete(tabId);
-    chrome.tabs.update(tabId, { url: originalUrl });
-  }
-});
 
 function shouldForwardHeader(name: string) {
   const normalizedName = name.toLowerCase();

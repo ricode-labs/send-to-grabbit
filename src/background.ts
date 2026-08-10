@@ -62,19 +62,6 @@ function isSupportedDownloadUrl(url: string) {
   return /^(https?):\/\//i.test(url);
 }
 
-async function openExternalProtocol(url: string) {
-  const [activeTab] = await chrome.tabs.query({
-    active: true,
-    currentWindow: true,
-  });
-
-  if (activeTab?.id !== undefined) {
-    await chrome.tabs.update(activeTab.id, { url });
-  } else {
-    await chrome.tabs.create({ active: true, url });
-  }
-}
-
 function shouldForwardHeader(name: string) {
   const normalizedName = name.toLowerCase();
   return (
@@ -152,6 +139,6 @@ chrome.downloads.onCreated.addListener(async (item) => {
   };
   await chrome.downloads.cancel(item.id);
   await chrome.downloads.erase({ id: item.id });
-  await openExternalProtocol(buildGrabbitUrl(payload));
+  await chrome.tabs.create({ active: true, url: buildGrabbitUrl(payload) });
   debugLog("Opened Grabbit protocol URL", { payload });
 });

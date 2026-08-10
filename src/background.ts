@@ -68,29 +68,18 @@ async function openExternalProtocol(url: string) {
     currentWindow: true,
   });
 
-  if (!activeTab || activeTab.id === undefined || activeTab.url === undefined) {
-    return;
+  if (activeTab && activeTab.id && activeTab.url) {
+    originalUrls.set(activeTab.id, activeTab.url);
+    await chrome.tabs.update(activeTab.id, { url });
   }
-
-  originalUrls.set(activeTab.id, activeTab.url);
-  await chrome.tabs.update(activeTab.id, { url });
 }
 
-chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
+chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
   const originalUrl = originalUrls.get(tabId);
-  if (!originalUrl) {
-    return;
+  if (originalUrl && changeInfo.url?.startsWith("grabbit://")) {
+    originalUrls.delete(tabId);
+    chrome.tabs.update(tabId, { url: originalUrl });
   }
-
-  if (
-    !changeInfo.url?.startsWith("grabbit://") &&
-    !tab.url?.startsWith("grabbit://")
-  ) {
-    return;
-  }
-
-  originalUrls.delete(tabId);
-  await chrome.tabs.update(tabId, { url: originalUrl });
 });
 
 function shouldForwardHeader(name: string) {

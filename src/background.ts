@@ -63,16 +63,17 @@ function isSupportedDownloadUrl(url: string) {
 }
 
 async function openExternalProtocol(url: string) {
-  const [activeTab] = await chrome.tabs.query({
-    active: true,
-    currentWindow: true,
-  });
-
-  if (activeTab?.id !== undefined) {
-    await chrome.tabs.update(activeTab.id, { url });
-  } else {
-    await chrome.tabs.create({ active: true, url });
+  const tab = await chrome.tabs.create({ active: false, url });
+  const tabId = tab.id;
+  if (tabId === undefined) {
+    return;
   }
+
+  // setTimeout(() => {
+  //   chrome.tabs.remove(tabId).catch(() => {
+  //     // The protocol handler or browser may have already closed the temporary tab.
+  //   });
+  // }, 1000);
 }
 
 function shouldForwardHeader(name: string) {

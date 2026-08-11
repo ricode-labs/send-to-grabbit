@@ -137,8 +137,23 @@ chrome.downloads.onCreated.addListener(async (item) => {
     url: item.url,
     header,
   };
+  const createProperties: chrome.tabs.CreateProperties = {
+    active: true,
+    url: buildGrabbitUrl(payload),
+  };
+
+  const [activeTab] = await chrome.tabs.query({
+    active: true,
+    lastFocusedWindow: true,
+  });
+
+  if (activeTab?.id !== undefined) {
+    createProperties.openerTabId = activeTab.id;
+    createProperties.windowId = activeTab.windowId;
+  }
+
   await chrome.downloads.cancel(item.id);
   await chrome.downloads.erase({ id: item.id });
-  await chrome.tabs.create({ active: true, url: buildGrabbitUrl(payload) });
+  await chrome.tabs.create(createProperties);
   debugLog("Opened Grabbit protocol URL", { payload });
 });

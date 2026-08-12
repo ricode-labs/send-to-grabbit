@@ -154,6 +154,14 @@ chrome.downloads.onCreated.addListener(async (item) => {
 
   await chrome.downloads.cancel(item.id);
   await chrome.downloads.erase({ id: item.id });
-  await chrome.tabs.create(createProperties);
+
+  try {
+    await chrome.tabs.create(createProperties);
+  } catch (error) {
+    delete createProperties.openerTabId;
+    delete createProperties.windowId;
+    await chrome.tabs.create(createProperties);
+  }
+
   debugLog("Opened Grabbit protocol URL", { payload });
 });

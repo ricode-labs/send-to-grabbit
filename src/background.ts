@@ -53,7 +53,7 @@ async function getCookieHeader(url: string) {
 
 function buildGrabbitUrl(payload: GrabbitPayload) {
   const params = new URLSearchParams({ payload: JSON.stringify(payload) });
-  const grabbitUrl = `grabbit://addUri?${params.toString()}`;
+  const grabbitUrl = `grabbit:?${params.toString()}`;
   debugLog("Built Grabbit URL", { grabbitUrl });
   return grabbitUrl;
 }
